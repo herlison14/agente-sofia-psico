@@ -1,67 +1,64 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
+import { useSession } from 'next-auth/react'
 import { Sessao, Psicologo } from '@/types/psico'
-import { format, isToday, startOfDay, endOfDay } from 'date-fns'
+import { format, startOfDay, endOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { CalendarDays, DollarSign, FileText, Clock, User } from 'lucide-react'
+import { CalendarDays, DollarSign, FileText, Clock, Users, UserX } from 'lucide-react'
 import Link from 'next/link'
 
 export default function DashboardPage() {
-  const [sessoes, setSessoes] = useState<Sessao[]>([])
+  const { data: session } = useSession()
   const [sessoesHoje, setSessoesHoje] = useState<Sessao[]>([])
   const [receitaMes, setReceitaMes] = useState(0)
   const [recibosCount, setRecibosCount] = useState(0)
+  const [pacientesAtivos, setPacientesAtivos] = useState(0)
+  const [faltasMes, setFaltasMes] = useState(0)
   const [psicologo, setPsicologo] = useState<Psicologo | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // demo mode: sem guard de sessao
+
     async function load() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
       const now = new Date()
-      const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-      const fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+      const inicio = startOfDay(now).toISOString()
+      const fim = endOfDay(now).toISOString()
+      const mes = format(now, 'yyyy-MM')
 
-      const [psicRes, sessoesHojeRes, receitaRes, recibosRes] = await Promise.all([
-        supabase.from('psicologos').select('*').eq('id', user.id).single(),
-        supabase
-          .from('sessoes')
-          .select('*, paciente:pacientes(*)')
-          .eq('psicologo_id', user.id)
-          .gte('data_hora', startOfDay(now).toISOString())
-          .lte('data_hora', endOfDay(now).toISOString())
-          .order('data_hora'),
-        supabase
-          .from('sessoes')
-          .select('valor')
-          .eq('psicologo_id', user.id)
-          .eq('status', 'realizado')
-          .gte('data_hora', inicioMes)
-          .lte('data_hora', fimMes),
-        supabase
-          .from('recibos')
-          .select('id', { count: 'exact', head: true })
-          .eq('psicologo_id', user.id)
-          .gte('created_at', inicioMes)
-          .lte('created_at', fimMes),
+      const [psicRes, sessoesRes, sessoesRealizadasRes, recibosRes, pacientesRes, faltasRes] = await Promise.all([
+        fetch('/api/psicologos').then(r => r.json()),
+        fetch(`/api/sessoes?inicio=${inicio}&fim=${fim}`).then(r => r.json()),
+        fetch(`/api/sessoes?mes=${mes}&status=realizado`).then(r => r.json()),
+        fetch('/api/recibos').then(r => r.json()),
+        fetch('/api/pacientes').then(r => r.json()),
+        fetch(`/api/sessoes?mes=${mes}&status=faltou`).then(r => r.json()),
       ])
 
-      if (psicRes.data) setPsicologo(psicRes.data)
-      if (sessoesHojeRes.data) setSessoesHoje(sessoesHojeRes.data as Sessao[])
-      if (receitaRes.data) {
-        const total = receitaRes.data.reduce((acc, s) => acc + Number(s.valor), 0)
+      if (psicRes) setPsicologo(psicRes)
+      if (Array.isArray(sessoesRes)) setSessoesHoje(sessoesRes)
+      if (Array.isArray(sessoesRealizadasRes)) {
+        const total = sessoesRealizadasRes.reduce((acc: number, s: Sessao) => acc + Number(s.valor), 0)
         setReceitaMes(total)
       }
-      if (recibosRes.count !== null) setRecibosCount(recibosRes.count)
+      if (Array.isArray(recibosRes)) {
+        const now2 = new Date()
+        const inicioMes = new Date(now2.getFullYear(), now2.getMonth(), 1)
+        const fimMes = new Date(now2.getFullYear(), now2.getMonth() + 1, 0)
+        const count = recibosRes.filter((r: { created_at: string }) => {
+          const d = new Date(r.created_at)
+          return d >= inicioMes && d <= fimMes
+        }).length
+        setRecibosCount(count)
+      }
+      if (Array.isArray(pacientesRes)) setPacientesAtivos(pacientesRes.filter((p: { ativo: boolean }) => p.ativo).length)
+      if (Array.isArray(faltasRes)) setFaltasMes(faltasRes.length)
 
       setLoading(false)
     }
     load()
-  }, [])
+  }, [session])
 
   const statusColor: Record<string, string> = {
     agendado: 'bg-[#E8F4FF] text-[#2563EB]',
@@ -98,7 +95,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <div className="bg-white rounded-2xl border border-[#E8E3DB] p-5 flex items-center gap-4 shadow-sm">
           <div className="bg-[#EBF5EF] rounded-xl p-3">
             <CalendarDays className="w-5 h-5 text-[#2D6A52]" strokeWidth={1.75} />
@@ -126,6 +123,24 @@ export default function DashboardPage() {
           <div>
             <p className="text-xs text-[#7A8C82] font-medium uppercase tracking-wide">Recibos emitidos</p>
             <p className="text-2xl font-bold text-[#1C2B22] mt-0.5">{recibosCount}</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-[#E8E3DB] p-5 flex items-center gap-4 shadow-sm">
+          <div className="bg-[#EBF5EF] rounded-xl p-3">
+            <Users className="w-5 h-5 text-[#2D6A52]" strokeWidth={1.75} />
+          </div>
+          <div>
+            <p className="text-xs text-[#7A8C82] font-medium uppercase tracking-wide">Pacientes ativos</p>
+            <p className="text-2xl font-bold text-[#1C2B22] mt-0.5">{pacientesAtivos}</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-[#E8E3DB] p-5 flex items-center gap-4 shadow-sm">
+          <div className="bg-orange-50 rounded-xl p-3">
+            <UserX className="w-5 h-5 text-orange-500" strokeWidth={1.75} />
+          </div>
+          <div>
+            <p className="text-xs text-[#7A8C82] font-medium uppercase tracking-wide">Faltas no mês</p>
+            <p className="text-2xl font-bold text-[#1C2B22] mt-0.5">{faltasMes}</p>
           </div>
         </div>
       </div>

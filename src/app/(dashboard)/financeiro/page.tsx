@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
+import { useSession } from 'next-auth/react'
 import { Sessao } from '@/types/psico'
-import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { DollarSign, TrendingUp, CalendarCheck, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export default function FinanceiroPage() {
+  const { data: session } = useSession()
   const now = new Date()
   const [mes, setMes] = useState(now.getMonth())
   const [ano, setAno] = useState(now.getFullYear())
@@ -15,30 +16,16 @@ export default function FinanceiroPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function load() {
-      setLoading(true)
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const ref = new Date(ano, mes, 1)
-      const inicio = startOfMonth(ref).toISOString()
-      const fim = endOfMonth(ref).toISOString()
-
-      const { data } = await supabase
-        .from('sessoes')
-        .select('*, paciente:pacientes(*)')
-        .eq('psicologo_id', user.id)
-        .eq('status', 'realizado')
-        .gte('data_hora', inicio)
-        .lte('data_hora', fim)
-        .order('data_hora')
-
-      if (data) setSessoes(data as Sessao[])
-      setLoading(false)
-    }
-    load()
-  }, [mes, ano])
+    // demo mode: sem guard de sessao
+    setLoading(true)
+    const mesStr = `${ano}-${String(mes + 1).padStart(2, '0')}`
+    fetch(`/api/sessoes?mes=${mesStr}&status=realizado`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setSessoes(data as Sessao[])
+        setLoading(false)
+      })
+  }, [mes, ano, session])
 
   function mudarMes(delta: number) {
     let novoMes = mes + delta
@@ -59,8 +46,7 @@ export default function FinanceiroPage() {
       const nome = `"${s.paciente?.nome ?? ''}"`
       const cpf = s.paciente?.cpf ?? ''
       const valor = Number(s.valor).toFixed(2).replace('.', ',')
-      const desc = 'Consulta Psicológica'
-      return [data, nome, cpf, valor, desc].join(',')
+      return [data, nome, cpf, valor, 'Consulta Psicológica'].join(',')
     })
     const csv = [cabecalho, ...linhas].join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -76,20 +62,15 @@ export default function FinanceiroPage() {
 
   return (
     <div>
-      {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <DollarSign className="w-6 h-6 text-indigo-600" />
           <h1 className="text-2xl font-bold text-gray-900">Financeiro</h1>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => mudarMes(-1)} className="p-2 hover:bg-gray-100 rounded-lg">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+          <button onClick={() => mudarMes(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-5 h-5" /></button>
           <span className="text-sm font-semibold text-gray-700 capitalize min-w-36 text-center">{nomeMes}</span>
-          <button onClick={() => mudarMes(1)} className="p-2 hover:bg-gray-100 rounded-lg">
-            <ChevronRight className="w-5 h-5" />
-          </button>
+          <button onClick={() => mudarMes(1)} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight className="w-5 h-5" /></button>
           <button
             onClick={exportarCSV}
             disabled={sessoes.length === 0}
@@ -100,47 +81,33 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-          <div className="bg-green-50 rounded-lg p-3">
-            <DollarSign className="w-6 h-6 text-green-600" />
-          </div>
+          <div className="bg-green-50 rounded-lg p-3"><DollarSign className="w-6 h-6 text-green-600" /></div>
           <div>
             <p className="text-sm text-gray-500">Receita total</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {receita.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </p>
+            <p className="text-2xl font-bold text-gray-900">{receita.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-          <div className="bg-blue-50 rounded-lg p-3">
-            <CalendarCheck className="w-6 h-6 text-blue-600" />
-          </div>
+          <div className="bg-blue-50 rounded-lg p-3"><CalendarCheck className="w-6 h-6 text-blue-600" /></div>
           <div>
             <p className="text-sm text-gray-500">Sessões realizadas</p>
             <p className="text-2xl font-bold text-gray-900">{sessoes.length}</p>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-          <div className="bg-indigo-50 rounded-lg p-3">
-            <TrendingUp className="w-6 h-6 text-indigo-600" />
-          </div>
+          <div className="bg-indigo-50 rounded-lg p-3"><TrendingUp className="w-6 h-6 text-indigo-600" /></div>
           <div>
             <p className="text-sm text-gray-500">Ticket médio</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {ticketMedio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </p>
+            <p className="text-2xl font-bold text-gray-900">{ticketMedio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
           </div>
         </div>
       </div>
 
-      {/* Tabela de sessões */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900 capitalize">
-            Sessões realizadas — {nomeMes}
-          </h2>
+          <h2 className="font-semibold text-gray-900 capitalize">Sessões realizadas — {nomeMes}</h2>
         </div>
         {loading ? (
           <div className="flex items-center justify-center h-32">
@@ -165,22 +132,15 @@ export default function FinanceiroPage() {
               <tbody className="divide-y divide-gray-100">
                 {sessoes.map(s => (
                   <tr key={s.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-600">
-                      {format(parseISO(s.data_hora), 'dd/MM/yyyy HH:mm')}
-                    </td>
+                    <td className="px-4 py-3 text-gray-600">{format(parseISO(s.data_hora), 'dd/MM/yyyy HH:mm')}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{s.paciente?.nome}</td>
                     <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{s.paciente?.cpf || '—'}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-800">
-                      {Number(s.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </td>
+                    <td className="px-4 py-3 font-semibold text-gray-800">{Number(s.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                   </tr>
                 ))}
-                {/* Total */}
                 <tr className="bg-gray-50 border-t-2 border-gray-200">
                   <td colSpan={3} className="px-4 py-3 font-semibold text-gray-700">Total</td>
-                  <td className="px-4 py-3 font-bold text-green-700 text-base">
-                    {receita.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </td>
+                  <td className="px-4 py-3 font-bold text-green-700 text-base">{receita.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                 </tr>
               </tbody>
             </table>

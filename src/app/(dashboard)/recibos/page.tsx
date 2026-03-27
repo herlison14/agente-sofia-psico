@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
+import { useSession } from 'next-auth/react'
 import { Recibo, Psicologo } from '@/types/psico'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -53,73 +53,54 @@ async function gerarPDF(recibo: Recibo, psicologo: Psicologo) {
   const gray = [100, 116, 139] as [number, number, number]
   const dark = [17, 24, 39] as [number, number, number]
 
-  // Cabeçalho fundo azul
   doc.setFillColor(...indigo)
   doc.rect(0, 0, pw, 40, 'F')
-
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(20)
   doc.setFont('helvetica', 'bold')
   doc.text('RECIBO DE PAGAMENTO', pw / 2, 18, { align: 'center' })
-
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.text('Consulta Psicológica', pw / 2, 26, { align: 'center' })
-
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   doc.text(`Nº ${String(recibo.numero).padStart(6, '0')}`, pw / 2, 34, { align: 'center' })
 
-  // Dados do psicólogo
   let y = 52
   doc.setTextColor(...gray)
   doc.setFontSize(8)
   doc.setFont('helvetica', 'bold')
   doc.text('PSICÓLOGO(A)', 20, y)
-
   y += 5
   doc.setTextColor(...dark)
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   doc.text(psicologo.nome ?? '', 20, y)
-
   y += 6
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...gray)
   if (psicologo.crp) doc.text(`CRP: ${psicologo.crp}`, 20, y)
   if (psicologo.cpf) doc.text(`CPF: ${psicologo.cpf}`, 100, y)
-
   y += 5
   if (psicologo.endereco) doc.text(psicologo.endereco, 20, y)
-  if (psicologo.cidade || psicologo.estado) {
-    y += 4
-    doc.text(`${psicologo.cidade ?? ''}${psicologo.estado ? '/' + psicologo.estado : ''}`, 20, y)
-  }
-  if (psicologo.telefone) {
-    y += 4
-    doc.text(`Tel: ${psicologo.telefone}`, 20, y)
-  }
+  if (psicologo.cidade || psicologo.estado) { y += 4; doc.text(`${psicologo.cidade ?? ''}${psicologo.estado ? '/' + psicologo.estado : ''}`, 20, y) }
+  if (psicologo.telefone) { y += 4; doc.text(`Tel: ${psicologo.telefone}`, 20, y) }
 
-  // Linha divisória
   y += 8
   doc.setDrawColor(229, 231, 235)
   doc.setLineWidth(0.4)
   doc.line(20, y, pw - 20, y)
-
-  // Dados do paciente
   y += 8
   doc.setTextColor(...gray)
   doc.setFontSize(8)
   doc.setFont('helvetica', 'bold')
   doc.text('PACIENTE', 20, y)
-
   y += 5
   doc.setTextColor(...dark)
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   doc.text(recibo.paciente?.nome ?? '', 20, y)
-
   y += 6
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
@@ -127,42 +108,33 @@ async function gerarPDF(recibo: Recibo, psicologo: Psicologo) {
   if (recibo.paciente?.cpf) doc.text(`CPF: ${recibo.paciente.cpf}`, 20, y)
   if (recibo.paciente?.email) doc.text(recibo.paciente.email, 100, y)
 
-  // Linha divisória
   y += 10
   doc.line(20, y, pw - 20, y)
-
-  // Valores
   y += 10
   doc.setFillColor(249, 250, 251)
   doc.roundedRect(20, y - 5, pw - 40, 28, 3, 3, 'F')
-
   doc.setTextColor(...gray)
   doc.setFontSize(8)
   doc.setFont('helvetica', 'bold')
   doc.text('DESCRIÇÃO DO SERVIÇO', 28, y)
   doc.text('DATA', pw - 70, y)
   doc.text('VALOR', pw - 40, y)
-
   y += 6
   doc.setTextColor(...dark)
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.text(recibo.descricao ?? 'Consulta Psicológica', 28, y)
   doc.text(format(parseISO(recibo.data_emissao), 'dd/MM/yyyy'), pw - 70, y)
-
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.setTextColor(...indigo)
   doc.text(Number(recibo.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), pw - 40, y)
-
   y += 10
   doc.setFontSize(8)
   doc.setFont('helvetica', 'italic')
   doc.setTextColor(...gray)
-  const ext = valorPorExtenso(Number(recibo.valor))
-  doc.text(`Valor por extenso: ${ext}`, 28, y)
+  doc.text(`Valor por extenso: ${valorPorExtenso(Number(recibo.valor))}`, 28, y)
 
-  // Rodapé
   y += 20
   doc.line(20, y, pw - 20, y)
   y += 6
@@ -172,8 +144,6 @@ async function gerarPDF(recibo: Recibo, psicologo: Psicologo) {
   doc.text('Emitido em conformidade com a Resolução CFP nº 11/2018', pw / 2, y, { align: 'center' })
   y += 5
   doc.text(`Emitido em: ${format(new Date(), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}`, pw / 2, y, { align: 'center' })
-
-  // Assinatura
   y += 20
   doc.line(pw / 2 - 40, y, pw / 2 + 40, y)
   y += 5
@@ -189,6 +159,7 @@ async function gerarPDF(recibo: Recibo, psicologo: Psicologo) {
 }
 
 export default function RecibosPage() {
+  const { data: session } = useSession()
   const [recibos, setRecibos] = useState<Recibo[]>([])
   const [psicologo, setPsicologo] = useState<Psicologo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -196,27 +167,17 @@ export default function RecibosPage() {
   const [semPerfil, setSemPerfil] = useState(false)
 
   useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const [psicRes, recibosRes] = await Promise.all([
-        supabase.from('psicologos').select('*').eq('id', user.id).single(),
-        supabase
-          .from('recibos')
-          .select('*, paciente:pacientes(*)')
-          .eq('psicologo_id', user.id)
-          .order('numero', { ascending: false }),
-      ])
-
-      if (psicRes.data) setPsicologo(psicRes.data)
+    // demo mode: sem guard de sessao
+    Promise.all([
+      fetch('/api/psicologos').then(r => r.json()),
+      fetch('/api/recibos').then(r => r.json()),
+    ]).then(([psicData, recibosData]) => {
+      if (psicData) setPsicologo(psicData)
       else setSemPerfil(true)
-      if (recibosRes.data) setRecibos(recibosRes.data as Recibo[])
+      if (Array.isArray(recibosData)) setRecibos(recibosData as Recibo[])
       setLoading(false)
-    }
-    load()
-  }, [])
+    })
+  }, [session])
 
   async function handleDownload(recibo: Recibo) {
     if (!psicologo) { alert('Preencha seu perfil antes de gerar o PDF.'); return }
@@ -266,17 +227,11 @@ export default function RecibosPage() {
               <tbody className="divide-y divide-gray-100">
                 {recibos.map(r => (
                   <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-indigo-600 font-semibold">
-                      #{String(r.numero).padStart(6, '0')}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {format(parseISO(r.data_emissao), 'dd/MM/yyyy')}
-                    </td>
+                    <td className="px-4 py-3 font-mono text-indigo-600 font-semibold">#{String(r.numero).padStart(6, '0')}</td>
+                    <td className="px-4 py-3 text-gray-600">{format(parseISO(r.data_emissao), 'dd/MM/yyyy')}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{r.paciente?.nome}</td>
                     <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{r.descricao}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-800">
-                      {Number(r.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </td>
+                    <td className="px-4 py-3 font-semibold text-gray-800">{Number(r.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => handleDownload(r)}

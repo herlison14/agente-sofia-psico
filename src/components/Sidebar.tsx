@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   CalendarDays,
@@ -15,7 +15,7 @@ import {
   X,
   Leaf,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase'
+import { signOut } from 'next-auth/react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -28,7 +28,6 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const router = useRouter()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -36,9 +35,7 @@ export default function Sidebar() {
   }, [pathname])
 
   async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
+    await signOut({ callbackUrl: '/login' })
   }
 
   const NavContent = () => (

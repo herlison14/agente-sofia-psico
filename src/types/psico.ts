@@ -30,8 +30,9 @@ export interface Sessao {
   data_hora: string
   duracao_min: number
   valor: number
-  status: 'agendado' | 'realizado' | 'cancelado'
+  status: 'agendado' | 'realizado' | 'cancelado' | 'faltou'
   observacoes: string | null
+  notas_clinicas: string | null
   created_at: string
   paciente?: Paciente
 }

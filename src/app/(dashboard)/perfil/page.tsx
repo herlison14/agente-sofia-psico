@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
+import { useSession } from 'next-auth/react'
 import { Psicologo } from '@/types/psico'
 import { Loader2, Save, UserCircle } from 'lucide-react'
 
 export default function PerfilPage() {
+  const { data: session } = useSession()
   const [form, setForm] = useState<Partial<Psicologo>>({
     nome: '', crp: '', cpf: '', email: '', telefone: '', endereco: '', cidade: '', estado: ''
   })
@@ -15,18 +16,15 @@ export default function PerfilPage() {
   const [erro, setErro] = useState('')
 
   useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data } = await supabase.from('psicologos').select('*').eq('id', user.id).single()
-      if (data) setForm(data)
-      else setForm(f => ({ ...f, email: user.email ?? '' }))
-      setLoading(false)
-    }
-    load()
-  }, [])
+    // demo mode: sem guard de sessao
+    fetch('/api/psicologos')
+      .then(r => r.json())
+      .then(data => {
+        if (data) setForm(data)
+        else setForm(f => ({ ...f, email: session?.user?.email ?? '' }))
+        setLoading(false)
+      })
+  }, [session])
 
   function handleChange(field: keyof Psicologo, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -38,16 +36,18 @@ export default function PerfilPage() {
     setErro('')
     setSucesso(false)
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    const res = await fetch('/api/psicologos', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
 
-    const { error } = await supabase
-      .from('psicologos')
-      .upsert({ ...form, id: user.id })
-
-    if (error) setErro('Erro ao salvar: ' + error.message)
-    else setSucesso(true)
+    if (!res.ok) {
+      const data = await res.json()
+      setErro('Erro ao salvar: ' + (data.error ?? 'Tente novamente.'))
+    } else {
+      setSucesso(true)
+    }
     setSaving(false)
   }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
+import { useSession } from 'next-auth/react'
 import { Paciente } from '@/types/psico'
 import { Plus, Search, Edit2, ToggleLeft, ToggleRight, Users, X, Loader2 } from 'lucide-react'
 
@@ -10,6 +10,7 @@ const EMPTY: Partial<Paciente> = {
 }
 
 export default function PacientesPage() {
+  const { data: session } = useSession()
   const [pacientes, setPacientes] = useState<Paciente[]>([])
   const [busca, setBusca] = useState('')
   const [loading, setLoading] = useState(true)
@@ -20,34 +21,19 @@ export default function PacientesPage() {
   const [erro, setErro] = useState('')
 
   async function loadPacientes() {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data } = await supabase
-      .from('pacientes')
-      .select('*')
-      .eq('psicologo_id', user.id)
-      .order('nome')
-    if (data) setPacientes(data)
+    const res = await fetch('/api/pacientes')
+    const data = await res.json()
+    if (Array.isArray(data)) setPacientes(data)
     setLoading(false)
   }
 
-  useEffect(() => { loadPacientes() }, [])
+  useEffect(() => {
+    // demo mode: sem guard de sessao
+    loadPacientes()
+  }, [session])
 
-  function openNew() {
-    setForm(EMPTY)
-    setEditId(null)
-    setErro('')
-    setModalOpen(true)
-  }
-
-  function openEdit(p: Paciente) {
-    setForm(p)
-    setEditId(p.id)
-    setErro('')
-    setModalOpen(true)
-  }
-
+  function openNew() { setForm(EMPTY); setEditId(null); setErro(''); setModalOpen(true) }
+  function openEdit(p: Paciente) { setForm(p); setEditId(p.id); setErro(''); setModalOpen(true) }
   function handleChange(field: keyof Paciente, value: string | number | boolean) {
     setForm(f => ({ ...f, [field]: value }))
   }
@@ -58,28 +44,34 @@ export default function PacientesPage() {
     setSaving(true)
     setErro('')
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
+    let res: Response
     if (editId) {
-      const { error } = await supabase.from('pacientes').update({ ...form }).eq('id', editId)
-      if (error) setErro(error.message)
+      res = await fetch(`/api/pacientes/${editId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
     } else {
-      const { error } = await supabase.from('pacientes').insert({ ...form, psicologo_id: user.id })
-      if (error) setErro(error.message)
+      res = await fetch('/api/pacientes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
     }
 
+    const data = await res.json()
     setSaving(false)
-    if (!erro) {
-      setModalOpen(false)
-      loadPacientes()
-    }
+    if (!res.ok) { setErro(data.error ?? 'Erro ao salvar.'); return }
+    setModalOpen(false)
+    loadPacientes()
   }
 
   async function toggleAtivo(p: Paciente) {
-    const supabase = createClient()
-    await supabase.from('pacientes').update({ ativo: !p.ativo }).eq('id', p.id)
+    await fetch(`/api/pacientes/${p.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...p, ativo: !p.ativo }),
+    })
     loadPacientes()
   }
 
@@ -103,7 +95,6 @@ export default function PacientesPage() {
         </button>
       </div>
 
-      {/* Busca */}
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -115,7 +106,6 @@ export default function PacientesPage() {
         />
       </div>
 
-      {/* Tabela */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-32">
@@ -170,7 +160,6 @@ export default function PacientesPage() {
         )}
       </div>
 
-      {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
@@ -235,11 +224,7 @@ export default function PacientesPage() {
                   />
                 </div>
               </div>
-
-              {erro && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{erro}</div>
-              )}
-
+              {erro && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{erro}</div>}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
                   Cancelar
