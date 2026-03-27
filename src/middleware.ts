@@ -1,9 +1,16 @@
+import { auth } from '@/auth'
 import { NextResponse } from 'next/server'
 
-// Modo de teste: sem autenticação
-export function middleware() {
+export default auth((req) => {
+  const { nextUrl, auth: session } = req
+  const isLoggedIn = !!session?.user
+  const isAuthPage = nextUrl.pathname.startsWith('/login')
+  const isApiAuth = nextUrl.pathname.startsWith('/api/auth')
+
+  if (isAuthPage || isApiAuth) return NextResponse.next()
+  if (!isLoggedIn) return NextResponse.redirect(new URL('/login', nextUrl))
   return NextResponse.next()
-}
+})
 
 export const config = {
   matcher: [
