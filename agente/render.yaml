@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: agente-sofia-psico
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: WAHA_URL
+        sync: false
+      - key: WAHA_API_KEY
+        sync: false
+      - key: WAHA_SESSION
+        value: "default"
+      - key: PSICO_API_URL
+        sync: false
+      - key: AGENTE_API_KEY
+        sync: false
+      - key: PSICOLOGO_ID
+        sync: false
+      - key: PSICOLOGA_PHONE
+        sync: false
+      - key: BUFFER_DELAY
+        value: "3"
