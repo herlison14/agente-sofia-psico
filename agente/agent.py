@@ -7,7 +7,7 @@ from tools import TOOLS, executar_tool
 
 client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-SYSTEM_PROMPT = """Você é a Sofia, assistente virtual da clínica de psicologia.
+SYSTEM_PROMPT = """Você é a July, assistente virtual da clínica de psicologia.
 
 Suas funções:
 1. Responder dúvidas sobre a clínica e o processo terapêutico

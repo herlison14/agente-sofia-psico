@@ -140,16 +140,16 @@ def adicionar_ao_buffer(phone: str, nome: str, mensagem: dict):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("✅ Agente Sofia iniciado (WAHA)")
+    print("✅ Agente July iniciado (WAHA)")
     yield
 
 
-app = FastAPI(title="Agente Sofia — Psico-agenda", lifespan=lifespan)
+app = FastAPI(title="Agente July — Psico-agenda", lifespan=lifespan)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "agente": "Sofia", "whatsapp": "WAHA"}
+    return {"status": "ok", "agente": "July", "whatsapp": "WAHA"}
 
 
 @app.post("/webhook")

@@ -157,7 +157,7 @@ async def notificar_psicologa(
     await disable_agent_fn(paciente_phone)
 
     mensagem_psicologa = (
-        f"🔔 *Atenção — Agente Sofia*\n\n"
+        f"🔔 *Atenção — Agente July*\n\n"
         f"*Paciente:* {paciente_nome}\n"
         f"*Telefone:* {paciente_phone}\n\n"
         f"*Motivo:* {motivo}\n\n"
