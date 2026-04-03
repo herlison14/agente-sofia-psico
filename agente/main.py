@@ -275,8 +275,10 @@ async def _processar_buffer_telegram(chat_id: int, phone: str, nome: str):
         await enviar_mensagem(chat_id, resposta)
 
     except Exception as e:
+        import traceback
         print(f"[ERRO Telegram] {phone}: {e}")
-        await enviar_mensagem(chat_id, "Desculpe, ocorreu um erro. Tente novamente em instantes.")
+        print(traceback.format_exc())
+        await enviar_mensagem(chat_id, f"Erro interno: {str(e)[:200]}")
 
 
 @app.get("/setup/telegram")
